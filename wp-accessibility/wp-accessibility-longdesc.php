@@ -45,9 +45,8 @@ function wpa_featured_longdesc( $attr, $attachment, $size ) {
 	return $attr;
 }
 
-
 // longdesc support, based on work by Michael Fields (http://wordpress.org/plugins/long-description-for-image-attachments/).
-define( 'WPA_TEMPLATES', trailingslashit( dirname( __FILE__ ) ) . 'templates/' );
+define( 'WPA_TEMPLATES', trailingslashit( __DIR__ ) . 'templates/' );
 add_action( 'template_redirect', 'wpa_longdesc_template' );
 /**
  * Load Template.
@@ -100,11 +99,11 @@ function wpa_longdesc_template() {
 	// Check to see if there is a template in the theme.
 	$template = locate_template( array( 'longdesc-template.php' ) );
 	if ( ! empty( $template ) ) {
-		require_once( $template );
+		require_once $template;
 		exit;
 	} else {
 		// Use plugin's template file.
-		require_once( WPA_TEMPLATES . 'longdesc-template.php' );
+		require_once WPA_TEMPLATES . 'longdesc-template.php';
 		exit;
 	}
 
@@ -169,16 +168,22 @@ function wpa_longdesc_add_attr( $html, $id, $caption, $title, $align, $url, $siz
 	return $html;
 }
 
-if ( function_exists( 'register_block_style' ) ) {
-	/**
-	 * Core function. Add reference style for long description.
-	 */
-	register_block_style(
-		'core/image',
-		array(
-			'name'         => 'longdesc',
-			'label'        => __( 'Has Long Description', 'wp-accessibility' ),
-			'style_handle' => 'longdesc-style',
-		)
-	);
+/**
+ * Register WPA long description block style.
+ */
+function wpa_register_block_style() {
+	if ( function_exists( 'register_block_style' ) ) {
+		/**
+		 * Core function. Add reference style for long description.
+		 */
+		register_block_style(
+			'core/image',
+			array(
+				'name'         => 'longdesc',
+				'label'        => __( 'Has Long Description', 'wp-accessibility' ),
+				'style_handle' => 'longdesc-style',
+			)
+		);
+	}
 }
+add_action( 'init', 'wpa_register_block_style' );

@@ -13,15 +13,13 @@
 	margin: 0;
 }
 
-.wpa-checkboxes li {
-	display: flex;
-	flex-wrap: wrap;
-	column-gap: .5rem;
-	align-items: center;
+.wpa-note {
+	display: block;
+	margin-left: 1.5rem;
 }
 
-.wpa-checkboxes li input {
-	margin-top: 0;
+.wpa-settings-wrapper hr {
+	margin: 0 -11px;
 }
 
 .notice .views {
@@ -114,6 +112,12 @@
 	display: block;
 }
 
+.linkedin-course-promotion.promotion img {
+	max-width: 110px;
+	margin-right: 10px;
+	margin-left: 10px;
+}
+
 .postbox.promotion p.coupon {
 	padding: 1em;
 	border: 2px dashed #ccc;
@@ -136,6 +140,26 @@
 .wpa-flex {
 	display: flex;
 	align-items: center;
+}
+
+.wpa-flex.wpa-social {
+	gap: 16px;
+	margin: 0;
+}
+
+.wpa-flex.wpa-social li {
+	margin: 0;
+}
+
+.wpa-flex.wpa-social a {
+	display: block;
+	padding: 3px;
+	border-radius: 3px;
+	background: #fffa;
+}
+
+.wpa-flex.wpa-social svg {
+	display: block;
 }
 
 #wpa-sidebar .postbox .wpa-affiliate-notice {
@@ -172,6 +196,10 @@
 	background: #fff;
 	color: #007eb3;
 	text-shadow: none;
+}
+
+.wpa-support-me a:has(svg):hover, .wpa-support-me a:has(svg):focus {
+	outline: 2px solid #000;
 }
 
 #wpa_settings_page ul ul {

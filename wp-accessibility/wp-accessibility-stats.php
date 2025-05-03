@@ -78,7 +78,7 @@ function wpa_add_stats( $stats, $title, $type = 'view', $post_ID = 0 ) {
 	if ( $admin_only && ! current_user_can( 'manage_options' ) ) {
 		return;
 	}
-	$stats  = json_encode( $stats );
+	$stats  = wp_json_encode( $stats );
 	$title  = str_replace( home_url(), '', $title );
 	$exists = wpa_get_post_by_title( $title );
 	if ( $exists ) {
@@ -93,12 +93,18 @@ function wpa_add_stats( $stats, $title, $type = 'view', $post_ID = 0 ) {
 			} else {
 				$old_stats = get_post( $exists )->post_content;
 			}
-			// Remove timestamp before comparing.
-			$test_stats            = json_decode( $stats );
-			$test_stats->timestamp = '';
-			$test_old              = json_decode( $old_stats );
-			$test_old->timestamp   = '';
-			if ( json_encode( $test_stats ) !== json_encode( $test_old ) ) {
+			// Remove timestamp before comparing. Otherwise, these will always be different.
+			$test_stats = json_decode( $stats );
+			if ( null !== $test_stats ) {
+				// If decode fails, don't attempt to unset timestamp.
+				$test_stats->timestamp = '';
+			}
+			$test_old = json_decode( $old_stats );
+			if ( null !== $test_old ) {
+				// If decode fails for any reason, move on, don't try to unset the timestamp.
+				$test_old->timestamp = '';
+			}
+			if ( wp_json_encode( $test_stats ) !== wp_json_encode( $test_old ) ) {
 				add_post_meta( $exists, '_wpa_old_event', array( $test_stats, $test_old ) );
 				// stats have changed; record the change.
 				add_post_meta( $exists, '_wpa_event', $stats );
@@ -125,9 +131,9 @@ function wpa_add_stats( $stats, $title, $type = 'view', $post_ID = 0 ) {
 		);
 		$stat  = wp_insert_post( $post );
 		$terms = array( $type );
-		require_once( ABSPATH . '/wp-admin/includes/dashboard.php' );
+		require_once ABSPATH . '/wp-admin/includes/dashboard.php';
 		$browser = wp_check_browser_version();
-		add_post_meta( $stat, '_wpa_browser', json_encode( $browser ) );
+		add_post_meta( $stat, '_wpa_browser', wp_json_encode( $browser ) );
 		$terms[] = $browser['name'];
 		$terms[] = $browser['platform'];
 		wp_set_object_terms( $stat, $terms, 'wpa-stats-type' );
@@ -328,51 +334,61 @@ function wpa_stats_data_point( $post, $type, $limit = 5 ) {
 	$line  = '';
 	$total = 0;
 	if ( 'event' === $type ) {
-		// translators: date changed, time changed.
-		$hc_text_enabled = __( 'High contrast enabled on %1$s at %2$s', 'wp-accessibility' );
-		// translators: date changed, time changed.
-		$lf_text_enabled = __( 'Large font size enabled on %1$s at %2$s', 'wp-accessibility' );
-		// translators: date changed, time changed.
-		$hc_text_disabled = __( 'High contrast disabled on %1$s at %2$s', 'wp-accessibility' );
-		// translators: date changed, time changed.
-		$lf_text_disabled = __( 'Large font size disabled on %1$s at %2$s', 'wp-accessibility' );
-		$param            = ( property_exists( $data, 'contrast' ) ) ? 'contrast' : 'fontsize';
-		if ( 'contrast' === $param ) {
-			switch ( $data->contrast ) {
-				case 'enabled':
-					$text = $hc_text_enabled;
-					break;
-				case 'disabled':
-					$text = $hc_text_disabled;
-			}
-		} else {
-			switch ( $data->fontsize ) {
-				case 'enabled':
-					$text = $lf_text_enabled;
-					break;
-				case 'disabled':
-					$text = $lf_text_disabled;
-			}
-		}
 		$date = gmdate( 'Y-m-d', $data->timestamp );
 		$time = gmdate( 'H:i', $data->timestamp );
+		// translators: date changed, time changed.
+		$hc_text_enabled = sprintf( __( 'High contrast enabled on %1$s at %2$s', 'wp-accessibility' ), $date, $time );
+		// translators: date changed, time changed.
+		$lf_text_enabled = sprintf( __( 'Large font size enabled on %1$s at %2$s', 'wp-accessibility' ), $date, $time );
+		// translators: date changed, time changed.
+		$hc_text_disabled = sprintf( __( 'High contrast disabled on %1$s at %2$s', 'wp-accessibility' ), $date, $time );
+		// translators: date changed, time changed.
+		$lf_text_disabled = sprintf( __( 'Large font size disabled on %1$s at %2$s', 'wp-accessibility' ), $date, $time );
+		$param            = ( property_exists( $data, 'contrast' ) ) ? 'contrast' : 'fontsize';
+		switch ( $param ) {
+			case 'contrast':
+				if ( property_exists( $data, 'contrast' ) ) {
+					switch ( $data->contrast ) {
+						case 'enabled':
+							$text = $hc_text_enabled;
+							break;
+						case 'disabled':
+							$text = $hc_text_disabled;
+					}
+				}
+				break;
+			case 'fontsize':
+				if ( property_exists( $data, 'fontsize' ) ) {
+					switch ( $data->fontsize ) {
+						case 'enabled':
+							$text = $lf_text_enabled;
+							break;
+						case 'disabled':
+							$text = $lf_text_disabled;
+					}
+				}
+				break;
+		}
+
 		if ( property_exists( $data, 'alttext' ) ) {
-			$image_link = '<a href="' . esc_url( add_query_arg( 'item', $data->alttext, admin_url( 'upload.php' ) ) ) . '">' . esc_html( $data->alttext ) . '</a>';
+			$alt_img    = preg_replace( '/[^0-9]/', '', $data->alttext );
+			$image_link = '<a href="' . esc_url( get_edit_post_link( $alt_img ) ) . '">' . esc_html( $data->alttext ) . '</a>';
 			// translators: 1) image link. 2) date 3) time.
 			$text = sprintf( __( 'Alt text expanded on image %1$s on %2$s at %3$s', 'wp-accessibility' ), $image_link, $date, $time );
 		}
 		if ( property_exists( $data, 'longdesc' ) ) {
-			$image_link = '<a href="' . esc_url( add_query_arg( 'item', $data->longdesc, admin_url( 'upload.php' ) ) ) . '">' . esc_html( $data->longdesc ) . '</a>';
+			$ld_img     = preg_replace( '/[^0-9]/', '', $data->longdesc );
+			$image_link = '<a href="' . esc_url( get_edit_post_link( $ld_img ) ) . '">' . esc_html( $data->longdesc ) . '</a>';
 			// translators: 1) image link. 2) date 3) time.
 			$text = sprintf( __( 'Long description expanded on image %1$s on %2$s at %3$s', 'wp-accessibility' ), $image_link, $date, $time );
 		}
-		$line = '<li>' . sprintf( $text, $date, $time ) . '</li>';
+		$line = '<li>' . $text . '</li>';
 		if ( 'all' === $limit ) {
 			$limit = count( $history ) + 1;
 		}
 		$i = $limit;
 		foreach ( $history as $h ) {
-			$i --;
+			--$i;
 			if ( $i < 1 ) {
 				$line .= '<li><a href="' . get_edit_post_link( $post_ID ) . '">' . __( 'View full record', 'wp-accessibility' ) . '</a></li>';
 				break;
@@ -527,7 +543,11 @@ function wpa_get_browser_stat( $post_ID ) {
 	$browser = get_post_meta( $post_ID, '_wpa_browser', true );
 	if ( $browser ) {
 		$browser = json_decode( $browser );
-		$browser = '<span class="wpa-browser"><img src="' . esc_url( $browser->img_src_ssl ) . '" alt="" width="20" height="20"> ' . esc_html( $browser->name . ' ' . $browser->version . '/' . $browser->platform ) . '</span>';
+		if ( is_object( $browser ) && property_exists( $browser, 'img_src_ssl' ) ) {
+			$browser = '<span class="wpa-browser"><img src="' . esc_url( $browser->img_src_ssl ) . '" alt="" width="20" height="20"> ' . esc_html( $browser->name . ' ' . $browser->version . '/' . $browser->platform ) . '</span>';
+		} else {
+			$browser = '';
+		}
 	} else {
 		$browser = __( 'Unknown browser', 'wp-accessibility' );
 	}
@@ -584,7 +604,7 @@ function wpa_format_stats( $type, $data, $history ) {
 		$data = (array) $data;
 		$i    = 0;
 		foreach ( $data as $k => $d ) {
-			$i++;
+			++$i;
 		}
 		return $i;
 	}
