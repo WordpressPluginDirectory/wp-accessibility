@@ -4,7 +4,7 @@
  *
  * @package     WP Accessibility
  * @author      Joe Dolson
- * @copyright   2012-2025 Joe Dolson
+ * @copyright   2012-2026 Joe Dolson
  * @license     GPL-2.0+
  *
  * @wordpress-plugin
@@ -17,11 +17,11 @@
  * Domain Path: /lang
  * License:     GPL-2.0+
  * License URI: http://www.gnu.org/license/gpl-2.0.txt
- * Version: 2.1.17
+ * Version: 2.4.0
  */
 
 /*
-	Copyright 2012-2025  Joe Dolson (email : joe@joedolson.com)
+	Copyright 2012-2026  Joe Dolson (email : joe@joedolson.com)
 
 	This program is free software; you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -45,18 +45,39 @@ require_once __DIR__ . '/wp-accessibility-longdesc.php';
 require_once __DIR__ . '/wp-accessibility-alt.php';
 require_once __DIR__ . '/wp-accessibility-contrast.php';
 require_once __DIR__ . '/wp-accessibility-settings.php';
+require_once __DIR__ . '/wp-accessibility-overlay.php';
+require_once __DIR__ . '/wp-accessibility-admin.php';
 require_once __DIR__ . '/wp-accessibility-help.php';
 if ( 'off' !== get_option( 'wpa_track_stats' ) ) {
 	require_once __DIR__ . '/wp-accessibility-stats.php';
 }
 
+define( 'WP_ACCESSIBILITY_VERSION', '2.4.0' );
+
 register_activation_hook( __FILE__, 'wpa_install' );
 
-add_action( 'admin_notices', 'wpa_status_notice', 10 );
+function wpa_admin_init() {
+	// Handle dismiss actions for the WP Accessibility Day promo.
+	if ( isset( $_GET['action'] ) && 'wpa_dismiss_once' === $_GET['action'] ) {
+		// The transient will expire after 3 weeks, allowing the promo to be shown again next year.
+		set_transient( 'wpa11yday_dismissed', true, 3 * WEEK_IN_SECONDS );
+		wp_redirect( admin_url( 'admin.php?page=wp-accessibility' ) );
+		exit;
+	}
+	if ( isset( $_GET['action'] ) && 'wpa_dismiss_permanently' === $_GET['action'] ) {
+		update_option( 'wpa11yday_dismissed', true );
+		delete_transient( 'wpa11yday_dismissed' );
+		wp_redirect( admin_url( 'admin.php?page=wp-accessibility' ) );
+		exit;
+	}
+}
+add_action( 'admin_init', 'wpa_admin_init' );
+
 /**
  * Display notice in Playground for demo purposes.
  */
 function wpa_status_notice() {
+	global $current_screen;
 	// Only shown when in the Playground preview.
 	if ( 'true' === get_option( 'wpa_show_playground_intro', '' ) ) {
 		echo '<div class="notice notice-info">';
@@ -71,24 +92,56 @@ function wpa_status_notice() {
 		echo '<p>' . sprintf( __( 'To learn more, check out the <a href="%s">plugin documentation</a>.', 'wp-accessibility' ), 'https://docs.joedolson.com/wp-accessibility/' ) . '</p>';
 		echo '</div>';
 	}
+	// This could leak to other screens, but they would all be relevant.
+	if ( ! str_contains( $current_screen->id, 'wp-accessibility' ) ) {
+		return;
+	}
+	$dismissed      = get_option( 'wpa11yday_dismissed', false );
+	$dismissed_once = get_transient( 'wpa11yday_dismissed' );
+	if ( $dismissed ) {
+		return;
+	}
+	// Date promo stops being shown.
+	$wpa11yday_end_date = strtotime( '2026-10-08 16:00 UTC' );
+	// Date promo starts being shown.
+	$wpa11yday_start_date = strtotime( '2026-09-26 16:00 UTC' );
+	if ( ! $dismissed_once && time() <= $wpa11yday_end_date && time() >= $wpa11yday_start_date ) {
+		$dismiss_once        = '<a href="' . esc_url( admin_url( 'admin.php?page=wp-accessibility&action=wpa_dismiss_once' ) ) . '" class="button button-primary">' . __( 'Dismiss for 2026', 'wp-accessibility' ) . '</a>';
+		$dismiss_permanently = '<a href="' . esc_url( admin_url( 'admin.php?page=wp-accessibility&action=wpa_dismiss_permanently' ) ) . '" class="button button-secondary">' . __( 'Dismiss forever', 'wp-accessibility' ) . '</a>';
+
+		$notice = sprintf(
+		__(
+			'%1$s <span>The biggest WordPress Accessibility event of the year starts October 7th. <a href="%2$s">Check out the full schedule</a>!</span>', 'wp-accessibility' ),
+			'<img src="' . esc_url( plugin_dir_url( __FILE__ ) . 'imgs/wpa11yday-2026.png' ) . '" alt="WP Accessibility Day 2026">',
+			'https://wpaccessibility.day/2026/schedule/?utm_source=wp-accessibility&utm_medium=software',
+		);
+		wp_admin_notice(
+			$notice . '<div class="dismiss-buttons">' . $dismiss_once . $dismiss_permanently . '</div>',
+			array(
+				'type'               => 'info',
+				'additional_classes' => array( 'wpa11yday-notice' ),
+			)
+		);
+	}
 }
+add_action( 'admin_notices', 'wpa_status_notice', 10 );
 
 add_action( 'admin_menu', 'wpa_admin_menu' );
 /**
  * Set up admin menu.
  */
 function wpa_admin_menu() {
-	add_menu_page( 'WP Accessibility', 'WP Accessibility', 'manage_options', 'wp-accessibility', 'wpa_admin_settings', 'dashicons-universal-access' );
-	add_submenu_page( 'wp-accessibility', 'WP Accessibility - Help', 'Get Help', 'manage_options', 'wp-accessibility-help', 'wpa_help_screen' );
+	add_menu_page( __( 'WP Accessibility - Features', 'wp-accessibility' ), __( 'WP Accessibility', 'wp-accessibility' ), 'manage_options', 'wp-accessibility', 'wpa_admin_settings', 'dashicons-universal-access' );
+	add_submenu_page( 'wp-accessibility', __( 'WP Accessibility - Fixes', 'wp-accessibility' ), __( 'Accessibility Fixes', 'wp-accessibility' ), 'manage_options', 'wp-accessibility-overlay', 'wpa_admin_overlay_settings' );
+	add_submenu_page( 'wp-accessibility', __( 'WP Accessibility - Admin & Testing', 'wp-accessibility' ), __( 'Testing & Admin', 'wp-accessibility' ), 'manage_options', 'wp-accessibility-admin', 'wpa_admin_admin_settings' );
+	add_submenu_page( 'wp-accessibility', __( 'WP Accessibility - Help', 'wp-accessibility' ), __( 'Get Help', 'wp-accessibility' ), 'manage_options', 'wp-accessibility-help', 'wpa_help_screen' );
 }
 
 /**
  * Install on activation.
  */
 function wpa_install() {
-	$wpa_version = '2.1.17';
 	if ( 'true' !== get_option( 'wpa_installed' ) ) {
-		add_option( 'rta_from_tag_clouds', 'on' );
 		add_option( 'asl_styles_focus', '' );
 		add_option( 'asl_styles_passive', '' );
 		add_option( 'asl_default_styles', 'true' );
@@ -98,12 +151,10 @@ function wpa_install() {
 		add_option( 'wpa_continue', 'Continue Reading' );
 		add_option( 'wpa_focus', '' );
 		add_option( 'wpa_installed', 'true' );
-		add_option( 'wpa_version', $wpa_version );
-		add_option( 'wpa_longdesc', 'jquery' );
+		add_option( 'wpa_longdesc', 'button' );
 		add_option( 'wpa_post_types', array( 'post' ) );
 	} else {
 		wpa_check_version();
-		update_option( 'wpa_version', $wpa_version );
 	}
 }
 
@@ -114,9 +165,12 @@ function wpa_install() {
  */
 function wpa_check_version() {
 	// upgrade for version 1.3.0.
-	$version = get_option( 'wpa_version' );
+	$version = WP_ACCESSIBILITY_VERSION;
+	if ( version_compare( $version, '2.3.0', '<' ) ) {
+		add_option( 'wpa_lang_attributes', 'on' );
+	}
 	if ( version_compare( $version, '1.3.0', '<' ) ) {
-		add_option( 'wpa_longdesc', 'jquery' );
+		add_option( 'wpa_longdesc', 'button' );
 	}
 	// upgrade for version 1.9.0.
 	if ( version_compare( $version, '1.9.0', '<' ) ) {
@@ -128,6 +182,12 @@ function wpa_check_version() {
 		}
 		if ( '' === $wpa_toolbar_ct ) {
 			update_option( 'wpa_toolbar_ct', 'on' );
+		}
+	}
+	if ( version_compare( $version, '2.2.0', '<' ) ) {
+		$ld_option = get_option( 'wpa_longdesc' );
+		if ( 'jquery' === $ld_option ) {
+			update_option( 'wpa_longdesc', 'button' );
 		}
 	}
 
@@ -157,7 +217,8 @@ add_action( 'wp_enqueue_scripts', 'wpa_stylesheet' );
 function wpa_stylesheet() {
 	$version = ( SCRIPT_DEBUG ) ? wp_rand( 10000, 100000 ) : wpa_check_version();
 	wp_register_style( 'wpa-style', plugins_url( 'css/wpa-style.css', __FILE__ ), array(), $version );
-	if ( 'link' === get_option( 'wpa_longdesc' ) || 'jquery' === get_option( 'wpa_longdesc' ) || 'on' === get_option( 'asl_enable' ) || ! empty( get_option( 'wpa_post_types', array() ) ) ) {
+	$ld = get_option( 'wpa_longdesc' );
+	if ( 'link' === $ld || 'jquery' === $ld || 'button' === $ld || 'on' === get_option( 'asl_enable' ) || ! empty( get_option( 'wpa_post_types', array() ) ) ) {
 		wp_enqueue_style( 'wpa-style' );
 		// these styles are derived from the WordPress skip link defaults.
 		$top = '7px';
@@ -166,7 +227,7 @@ function wpa_stylesheet() {
 		}
 		$add_css    = ( ! wpa_accessible_theme() ) ? wpa_css() : '';
 		$custom_css = ':root { --admin-bar-top : ' . $top . '; }';
-		wp_add_inline_style( 'wpa-style', wp_filter_nohtml_kses( stripcslashes( $add_css . $custom_css ) ) );
+		wp_add_inline_style( 'wpa-style', wp_filter_nohtml_kses( wp_unslash( $add_css . $custom_css ) ) );
 	}
 	if ( current_user_can( 'edit_files' ) && 'on' === get_option( 'wpa_diagnostics' ) ) {
 		wp_register_style( 'diagnostic', plugins_url( 'css/diagnostic.css', __FILE__ ) );
@@ -225,7 +286,6 @@ function wpa_skiplink_css( $defaults = false ) {
 		// these styles are derived from the WordPress skip link defaults.
 		$default_focus = 'background-color: #f1f1f1;
 	box-shadow: 0 0 2px 2px rgba(0, 0, 0, 0.6);
-	clip: auto;
 	color: #0073aa;
 	display: block;
 	font-weight: 600;
@@ -243,7 +303,6 @@ function wpa_skiplink_css( $defaults = false ) {
 		// Passive default styles derived from WordPress default focus styles.
 		$default_passive = 'background-color: #fff;
 	box-shadow: 0 0 2px 2px rgba(0, 0, 0, 0.2);
-	clip: auto;
 	color: #333;
 	display: block;
 	font-weight: 600;
@@ -292,9 +351,9 @@ $class#skiplinks a:active, $vis $class#skiplinks a:focus {
 	 *
 	 * @hook wpa_skiplink_styles
 	 *
-	 * @param {string} $styles Styles configured by settings.
+	 * @param string $styles Styles configured by settings.
 	 *
-	 * @return {string}
+	 * @return string
 	 */
 	$styles = apply_filters( 'wpa_skiplink_styles', $styles );
 
@@ -330,55 +389,12 @@ function wpa_is_url( $url ) {
 	return preg_match( '|^http(s)?://[a-z0-9-]+(.[a-z0-9-]+)*(:[0-9]+)?(/.*)?$|i', $url );
 }
 
-add_action( 'wp_enqueue_scripts', 'wpa_jquery_asl', 100 );
+add_action( 'wp_enqueue_scripts', 'wpa_enqueue_js', 100 );
 /**
  * Enqueue JS needed for WP Accessibility options.
  */
-function wpa_jquery_asl() {
-	$version       = ( SCRIPT_DEBUG ) ? wp_rand( 10000, 100000 ) : wpa_check_version();
-	$longdesc_type = false;
-	if ( 'link' === get_option( 'wpa_longdesc' ) ) {
-		$longdesc_type = 'link';
-	} elseif ( 'jquery' === get_option( 'wpa_longdesc' ) ) {
-		$longdesc_type = 'jquery';
-	}
-	if ( $longdesc_type ) {
-		$wpald = ( SCRIPT_DEBUG ) ? plugins_url( 'js/longdesc.js', __FILE__ ) : plugins_url( 'js/longdesc.min.js', __FILE__ );
-		wp_enqueue_script( 'wpa.longdesc', $wpald, array( 'jquery' ), $version, true );
-		wp_localize_script(
-			'wpa.longdesc',
-			'wpald',
-			array(
-				'url'  => get_rest_url( null, 'wp/v2/media' ),
-				'type' => $longdesc_type,
-				'home' => home_url(),
-				'text' => '<span class="dashicons dashicons-media-text" aria-hidden="true"></span><span class="screen-reader">' . __( 'Long Description', 'wp-accessibility' ) . '</span>',
-			)
-		);
-	}
-	if ( 'on' === get_option( 'wpa_show_alt' ) ) {
-		/**
-		 * Modify the selector used to attach the alt attribute toggle button on images. Default `.hentry img[alt!=""], .comment-content img[alt!=""]`.
-		 *
-		 * @hook wpa_show_alt_selector
-		 *
-		 * @since 2.0.0
-		 *
-		 * @param {string} $selector Valid jQuery selector string.
-		 *
-		 * @return {string}
-		 */
-		$selector = apply_filters( 'wpa_show_alt_selector', '.hentry img[alt!=""], .comment-content img[alt!=""]' );
-		$wpaab    = ( SCRIPT_DEBUG ) ? plugins_url( 'js/alt.button.js', __FILE__ ) : plugins_url( 'js/alt.button.min.js', __FILE__ );
-		wp_enqueue_script( 'wpa.alt', $wpaab, array( 'jquery' ), $version, true );
-		wp_localize_script(
-			'wpa.alt',
-			'wpalt',
-			array(
-				'selector' => $selector,
-			)
-		);
-	}
+function wpa_enqueue_js() {
+	$version    = ( SCRIPT_DEBUG ) ? wp_rand( 10000, 100000 ) : wpa_check_version();
 	$visibility = ( 'on' === get_option( 'asl_visible' ) ) ? 'wpa-visible' : 'wpa-hide';
 	$output     = '';
 	if ( 'on' === get_option( 'asl_enable' ) && ! wpa_accessible_theme() ) {
@@ -387,9 +403,9 @@ function wpa_jquery_asl() {
 		 * Customize the default value for extra skiplink. Turns on extra skiplink options in WP Accessibility versions > 1.9.0.
 		 *
 		 * @hook asl_extra_target
-		 * @param {string} Value to use as a default for the extra skiplink.
+		 * @param string $setting Value to use as a default for the extra skiplink.
 		 *
-		 * @return {string}
+		 * @return string
 		 */
 		$default_extra = apply_filters( 'asl_extra_target', '' );
 		$extra         = get_option( 'asl_extra_target', $default_extra );
@@ -404,9 +420,9 @@ function wpa_jquery_asl() {
 		 * Customize the default value for sitemap skiplink. Turns on sitemap skiplink options in WP Accessibility versions > 1.9.0.
 		 *
 		 * @hook asl_sitemap
-		 * @param {string} Value to use as a default for the sitemap.
+		 * @param string $settingValue to use as a default for the sitemap.
 		 *
-		 * @return {string}
+		 * @return string
 		 */
 		$default_sitemap = apply_filters( 'asl_sitemap', '' );
 		$sitemap         = esc_url( get_option( 'asl_sitemap', $default_sitemap ) );
@@ -420,47 +436,70 @@ function wpa_jquery_asl() {
 	}
 
 	$labels = array(
-		's'       => __( 'Search', 'wp-accessibility' ),
-		'author'  => __( 'Name', 'wp-accessibility' ),
-		'email'   => __( 'Email', 'wp-accessibility' ),
-		'url'     => __( 'Website', 'wp-accessibility' ),
-		'comment' => __( 'Comment', 'wp-accessibility' ),
+		's'       => _x( 'Search', 'Search field label', 'wp-accessibility' ),
+		'author'  => _x( 'Name', 'Commenter name label', 'wp-accessibility' ),
+		'email'   => _x( 'Email', 'Commenter email label', 'wp-accessibility' ),
+		'url'     => _x( 'Website', 'Commenter website label', 'wp-accessibility' ),
+		'comment' => _x( 'Comment', 'Commenter message label', 'wp-accessibility' ),
 	);
 	/**
 	 * Customize labels passed to automatically label core WordPress fields.
 	 *
 	 * @hook wpa_labels
-	 * @param {array} $labels Array of labels for search and comment fields.
+	 * @param array $labels Array of labels for search and comment fields.
 	 *
-	 * @return {array}
+	 * @return array
 	 */
 	$labels = apply_filters( 'wpa_labels', $labels );
-	$dir    = ( is_rtl() ) ? 'rtl' : 'ltr';
-	$lang   = get_bloginfo( 'language' );
+	$dir    = '';
+	$lang   = '';
+	if ( 'off' !== get_option( 'wpa_lang_attributes' ) && ! wpa_accessible_theme() ) {
+		$dir  = ( is_rtl() ) ? 'rtl' : 'ltr';
+		$lang = get_bloginfo( 'language' );
+	}
 
-	$wpafp = plugins_url( 'js/fingerprint.min.js', __FILE__ );
-	wp_register_script( 'wpa-fingerprintjs', $wpafp, array(), $version );
 	if ( SCRIPT_DEBUG ) {
 		$wpajs = plugins_url( 'js/wp-accessibility.js', __FILE__ );
 	} else {
 		$wpajs = plugins_url( 'js/wp-accessibility.min.js', __FILE__ );
 	}
-	$deps     = array( 'jquery', 'wpa-fingerprintjs' );
-	$longdesc = ( 'jquery' === get_option( 'wpa_longdesc' ) ) ? true : false;
-	if ( 'jquery' === $longdesc ) {
-		$deps[] = 'wpa.longdesc';
+	wp_enqueue_script(
+		'wp-accessibility',
+		$wpajs,
+		array(),
+		$version,
+		array(
+			'in_footer' => true,
+			'strategy'  => 'defer',
+		)
+	);
+
+	$longdesc_type = false;
+	if ( 'link' === get_option( 'wpa_longdesc' ) ) {
+		$longdesc_type = 'link';
+	} elseif ( 'jquery' === get_option( 'wpa_longdesc' ) || 'button' === get_option( 'wpa_longdesc' ) ) {
+		$longdesc_type = 'button';
 	}
-	$alttext = ( 'on' === get_option( 'wpa_show_alt' ) ) ? true : false;
-	if ( $alttext ) {
-		$deps[] = 'wpa.alt';
-	}
-	wp_enqueue_script( 'wp-accessibility', $wpajs, $deps, $version, true );
+	/**
+	 * Modify the selector used to attach the alt attribute toggle button on images. Default `.hentry img[alt!=""], .comment-content img[alt!=""]`.
+	 *
+	 * @hook wpa_show_alt_selector
+	 *
+	 * @since 2.0.0
+	 *
+	 * @param string $selector Valid CSS selector string.
+	 *
+	 * @return string
+	 */
+	$selector = apply_filters( 'wpa_show_alt_selector', '.hentry img[alt]:not([alt=""]), .comment-content img[alt]:not([alt=""]), #content img[alt]:not([alt=""]),.entry-content img[alt]:not([alt=""])' );
+	$alttext  = ( 'on' === get_option( 'wpa_show_alt' ) ) ? true : false;
+
 	/**
 	 * Filter target element selector for underlines. Default `a`.
 	 *
 	 * @hook wpa_underline_target
 	 *
-	 * @param {string} $el Target element selector.
+	 * @param string $el Target element selector.
 	 *
 	 * @return string
 	 */
@@ -470,70 +509,94 @@ function wpa_jquery_asl() {
 	 *
 	 * @hook wpa_view_remediation_logs
 	 *
-	 * @param {bool} $visible Default `true` if user is logged in and has capabilities to manage options.
+	 * @param bool $visible Default `true` if user is logged in and has capabilities to manage options.
 	 *
-	 * @return {bool}
+	 * @return bool
 	 */
 	$errors_enabled = apply_filters( 'wpa_view_remediation_logs', current_user_can( 'manage_options' ) );
-	$track          = ( '' === get_option( 'wpa_track_stats' ) ) ? current_user_can( 'manage_options' ) : true;
+	$track          = ( '' === get_option( 'wpa_track_stats', '' ) ) ? current_user_can( 'manage_options' ) : true;
 	$track          = ( 'off' === get_option( 'wpa_track_stats' ) ) ? false : $track;
 	/**
 	 * Filter whether data from views will be tracked.
 	 *
 	 * @hook wpa_track_view_statistics
 	 *
-	 * @param {bool} $visible Default `true` if user is logged in and has capabilities to manage options or if enabled in settings.
+	 * @param bool $visible Default `true` if user is logged in and has capabilities to manage options or if enabled in settings.
 	 *
-	 * @return {bool}
+	 * @return bool
 	 */
 	$tracking_enabled = apply_filters( 'wpa_track_view_statistics', $track );
+	$apply_labels     = ( 'off' === get_option( 'wpa_labels' ) ) ? false : true;
 	/**
 	 * Filter whether automatic labeling is enabled.
 	 *
 	 * @hook wpa_disable_labels
 	 *
-	 * @param {bool} $enabled True if labels are automatically added.
+	 * @param bool $enabled True if labels are automatically added.
 	 *
-	 * @return {bool}
+	 * @return bool
 	 */
-	$apply_labels = apply_filters( 'wpa_disable_labels', true );
+	$apply_labels  = apply_filters( 'wpa_disable_labels', $apply_labels );
+	$remove_titles = ( 'off' === get_option( 'wpa_remove_titles' ) ) ? false : true;
 	/**
 	 * Filter whether title attributes are removed. Used to be image titles only, now applies buttons and links, as well.
 	 *
 	 * @hook wpa_remove_titles
 	 *
-	 * @param {bool} $enabled True if title attributes are removed.
+	 * @param bool $enabled True if title attributes are removed.
 	 *
-	 * @return {bool}
+	 * @return bool
 	 */
-	$remove_titles = apply_filters( 'wpa_remove_titles', true );
+	$remove_titles = apply_filters( 'wpa_remove_titles', $remove_titles );
+	$set_viewport  = ( 'off' === get_option( 'wpa_viewport' ) ) ? false : true;
+	/**
+	 * Filter whether WP Accessibility manipulates the viewport.
+	 *
+	 * @hook wpa_viewport
+	 *
+	 * @param bool $enabled True viewport can be modified.
+	 *
+	 * @return bool
+	 */
+	$viewport = apply_filters( 'wpa_viewport', $set_viewport );
 	wp_localize_script(
 		'wp-accessibility',
 		'wpa',
 		array(
-			'skiplinks' => array(
+			'skiplinks'   => array(
 				'enabled' => ( 'on' === get_option( 'asl_enable' ) ) ? true : false,
 				'output'  => $output,
 			),
-			'target'    => ( 'on' === get_option( 'wpa_target' ) ) ? true : false,
-			'tabindex'  => ( 'on' === get_option( 'wpa_tabindex' ) ) ? true : false,
-			'underline' => array(
+			'target'      => ( 'on' === get_option( 'wpa_target' ) ) ? true : false,
+			'tabindex'    => ( 'on' === get_option( 'wpa_tabindex' ) ) ? true : false,
+			'underline'   => array(
 				'enabled' => ( 'on' === get_option( 'wpa_underline' ) ) ? true : false,
 				'target'  => $target,
 			),
-			'dir'       => $dir,
-			'lang'      => $lang,
-			'titles'    => $remove_titles,
-			'labels'    => $apply_labels,
-			'wpalabels' => $labels,
-			'current'   => ( version_compare( $GLOBALS['wp_version'], '5.3', '<' ) ) ? true : false,
-			'errors'    => ( $errors_enabled ) ? true : false,
-			'tracking'  => ( $tracking_enabled ) ? true : false,
-			'ajaxurl'   => admin_url( 'admin-ajax.php' ),
-			'security'  => wp_create_nonce( 'wpa-stats-action' ),
-			'action'    => 'wpa_stats_action',
-			'url'       => ( function_exists( 'wpa_get_current_url' ) ) ? wpa_get_current_url() : 'disabled',
-			'post_id'   => ( is_singular() ) ? get_the_ID() : '',
+			'videos'      => ( 'on' === get_option( 'wpa_videos' ) ) ? true : false,
+			'dir'         => $dir,
+			'viewport'    => $viewport,
+			'lang'        => $lang,
+			'titles'      => $remove_titles,
+			'labels'      => $apply_labels,
+			'wpalabels'   => $labels,
+			'alt'         => $alttext,
+			'altSelector' => $selector,
+			'current'     => ( version_compare( $GLOBALS['wp_version'], '5.3', '<' ) ) ? true : false,
+			'errors'      => ( $errors_enabled ) ? true : false,
+			'tracking'    => ( $tracking_enabled ) ? true : false,
+			'ajaxurl'     => admin_url( 'admin-ajax.php' ),
+			'security'    => wp_create_nonce( 'wpa-stats-action' ),
+			'action'      => 'wpa_stats_action',
+			'url'         => ( function_exists( 'wpa_get_current_url' ) ) ? wpa_get_current_url() : 'disabled',
+			'post_id'     => ( is_singular() ) ? get_the_ID() : '',
+			'continue'    => ( wp_is_block_theme() ) ? true : false,
+			'pause'       => __( 'Pause video', 'wp-accessibility' ),
+			'play'        => __( 'Play video', 'wp-accessibility' ),
+			'restUrl'     => get_rest_url( null, 'wp/v2/media' ),
+			'ldType'      => $longdesc_type,
+			'ldHome'      => home_url(),
+			'ldText'      => '<span class="dashicons dashicons-media-text" aria-hidden="true"></span><span class="screen-reader">' . __( 'Long Description', 'wp-accessibility' ) . '</span>',
 		)
 	);
 }
@@ -585,7 +648,7 @@ add_filter( 'mce_css', 'wpa_diagnostic_css' );
  *
  * @param string $mce_css Existing CSS.
  *
- * @return full string css.
+ * @return string Full string CSS.
  */
 function wpa_diagnostic_css( $mce_css ) {
 	if ( get_option( 'wpa_diagnostics' ) === 'on' ) {
@@ -612,6 +675,15 @@ function wpa_filter( $query ) {
 			$query->query_vars['s'] = '&#32;';
 			$query->set( 'is_search', 1 );
 			add_action( 'template_include', 'wpa_search_error' );
+			add_filter(
+				'get_search_query',
+				function ( $search_query ) {
+					if ( '&#32;' === $search_query ) {
+						return '';
+					}
+					return $search_query;
+				}
+			);
 		}
 	}
 
@@ -671,7 +743,7 @@ function wpa_excerpt_more() {
 /**
  * Add custom continue reading text to content.
  *
- * @return continue reading text.
+ * @return string Continue reading text.
  */
 function wpa_content_more() {
 	global $id;
@@ -684,30 +756,13 @@ function wpa_content_more() {
  *
  * @param string $output Existing content.
  *
- * @return continue reading text.
+ * @return string Continue reading text.
  */
 function wpa_custom_excerpt_more( $output ) {
 	if ( has_excerpt() && ! is_attachment() ) {
 		global $id;
 		$output .= ' ' . wpa_continue_reading( $id ); // insert a blank space.
 	}
-
-	return $output;
-}
-
-if ( 'on' === get_option( 'rta_from_tag_clouds' ) ) {
-	add_filter( 'wp_tag_cloud', 'wpa_remove_title_attributes' );
-}
-
-/**
- * Strip title attributes from tag clouds.
- *
- * @param string $output Tag Cloud.
- *
- * @return string Tag cloud without title attributes.
- */
-function wpa_remove_title_attributes( $output ) {
-	$output = preg_replace( '/\s*title\s*=\s*(["\']).*?\1/', '', $output );
 
 	return $output;
 }
@@ -852,6 +907,19 @@ function wpa_accessible_theme() {
 }
 
 /**
+ * Disable infinite scrolling by default. Enable if turned on by the user.
+ */
+function wpa_disable_infinite_scroll() {
+	$user_id = get_current_user_id();
+	$enabled = ( 'true' === get_user_option( 'infinite_scrolling', $user_id ) ) ? true : false;
+	if ( ! $enabled ) {
+		// Disable infinite scrolling.
+		add_filter( 'media_library_infinite_scrolling', '__return_false' );
+	}
+}
+add_action( 'admin_init', 'wpa_disable_infinite_scroll' );
+
+/**
  * Disable full screen block editor by default.
  */
 function wpa_disable_editor_fullscreen_by_default() {
@@ -861,6 +929,24 @@ function wpa_disable_editor_fullscreen_by_default() {
 	}
 }
 add_action( 'enqueue_block_editor_assets', 'wpa_disable_editor_fullscreen_by_default' );
+
+/**
+ * Disable file embeds by default.
+ *
+ * @param array $blockdata Array of block configuration meta data.
+ *
+ * @return array
+ */
+function wpa_disable_file_embed_by_default( $blockdata ) {
+	if ( 'core/file' === $blockdata['name'] && 'on' === get_option( 'wpa_disable_file_embed' ) ) {
+		if ( isset( $blockdata['attributes']['displayPreview'] ) ) {
+			$blockdata['attributes']['displayPreview']['default'] = false;
+		}
+	}
+
+	return $blockdata;
+}
+add_filter( 'block_type_metadata', 'wpa_disable_file_embed_by_default' );
 
 /**
  * Remove the H1 heading from the headings block.
@@ -924,10 +1010,10 @@ function wpa_get_content_summary( $post_id ) {
 	 *
 	 * @hook wpa_summary_heading
 	 *
-	 * @param {string} $heading Heading text.
-	 * @param {int}    $post_id Post ID.
+	 * @param string $heading Heading text.
+	 * @param int    $post_id Post ID.
 	 *
-	 * @return {string}
+	 * @return string
 	 */
 	$heading = apply_filters( 'wpa_summary_heading', __( 'Summary', 'wp-accessibility' ), $post_id );
 	/**
@@ -935,10 +1021,10 @@ function wpa_get_content_summary( $post_id ) {
 	 *
 	 * @hook wpa_summary_heading_level
 	 *
-	 * @param {string} $heading Element selector.
-	 * @param {int}    $post_id Post ID.
+	 * @param string $heading Element selector.
+	 * @param int    $post_id Post ID.
 	 *
-	 * @return {string}
+	 * @return string
 	 */
 	$level = apply_filters( 'wpa_summary_heading_level', 'h2', $post_id );
 

@@ -5,7 +5,7 @@
  * @category Features
  * @package  WP Accessibility
  * @author   Joe Dolson
- * @license  GPLv2 or later
+ * @license  GPLv2
  * @link     https://www.joedolson.com/wp-access/
  */
 
@@ -38,7 +38,6 @@ function wpa_media_columns( $columns ) {
  */
 function wpa_media_value( $column, $id ) {
 	if ( 'wpa_data' === $column ) {
-		$mime           = get_post_mime_type( $id );
 		$invalid_values = array(
 			'""',
 			"''",
@@ -46,32 +45,29 @@ function wpa_media_value( $column, $id ) {
 			' ',
 			'-',
 			'--',
+			'.',
+			'...',
 		);
-		switch ( $mime ) {
-			case 'image/jpeg':
-			case 'image/png':
-			case 'image/gif':
-				$alt    = get_post_meta( $id, '_wp_attachment_image_alt', true );
-				$no_alt = (bool) get_post_meta( $id, '_no_alt', true );
-				if ( ! $alt && ! $no_alt ) {
-					echo '<span class="missing"><span class="dashicons dashicons-no" aria-hidden="true"></span> <a href="' . get_edit_post_link( $id ) . '#attachment_alt">' . __( 'Add <code>alt</code> text', 'wp-accessibility' ) . '</a></span>';
+		if ( wp_attachment_is( 'image', $id ) ) {
+			$alt    = get_post_meta( $id, '_wp_attachment_image_alt', true );
+			$no_alt = (bool) get_post_meta( $id, '_no_alt', true );
+			if ( ! $alt && ! $no_alt ) {
+				echo '<span class="missing"><span class="dashicons dashicons-no" aria-hidden="true"></span> <a href="' . get_edit_post_link( $id ) . '#attachment_alt">' . __( 'Add <code>alt</code> text', 'wp-accessibility' ) . '</a></span>';
+			} else {
+				if ( true === $no_alt ) {
+					echo '<span class="ok"><span class="dashicons dashicons-yes" aria-hidden="true"></span> ' . __( 'Decorative', 'wp-accessibility' ) . '</span>';
+				} elseif ( in_array( $alt, $invalid_values, true ) || ctype_punct( $alt ) || ctype_space( $alt ) ) {
+					echo '<span class="missing"><span class="dashicons dashicons-no" aria-hidden="true"></span> <a href="' . get_edit_post_link( $id ) . '#attachment_alt">' . __( 'Invalid <code>alt</code>', 'wp-accessibility' ) . '</a></span>';
+				} elseif ( wpa_suspicious_alt( $alt ) ) {
+					echo '<span class="missing"><span class="dashicons dashicons-no" aria-hidden="true"></span> <a href="' . get_edit_post_link( $id ) . '#attachment_alt">' . __( 'Suspicious <code>alt</code>', 'wp-accessibility' ) . '</a></span>';
+				} elseif ( wpa_long_alt( $alt ) ) {
+					echo '<span class="long"><span class="dashicons dashicons-warning" aria-hidden="true"></span> <a href="' . get_edit_post_link( $id ) . '#attachment_alt">' . __( 'Long <code>alt</code> text', 'wp-accessibility' ) . '</a></span>';
 				} else {
-					if ( true === $no_alt ) {
-						echo '<span class="ok"><span class="dashicons dashicons-yes" aria-hidden="true"></span> ' . __( 'Decorative', 'wp-accessibility' ) . '</span>';
-					} elseif ( in_array( $alt, $invalid_values, true ) || ctype_punct( $alt ) || ctype_space( $alt ) ) {
-						echo '<span class="missing"><span class="dashicons dashicons-no" aria-hidden="true"></span> <a href="' . get_edit_post_link( $id ) . '#attachment_alt">' . __( 'Invalid <code>alt</code>', 'wp-accessibility' ) . '</a></span>';
-					} elseif ( wpa_suspicious_alt( $alt ) ) {
-						echo '<span class="missing"><span class="dashicons dashicons-no" aria-hidden="true"></span> <a href="' . get_edit_post_link( $id ) . '#attachment_alt">' . __( 'Suspicious <code>alt</code>', 'wp-accessibility' ) . '</a></span>';
-					} elseif ( wpa_long_alt( $alt ) ) {
-						echo '<span class="long"><span class="dashicons dashicons-warning" aria-hidden="true"></span> <a href="' . get_edit_post_link( $id ) . '#attachment_alt">' . __( 'Long <code>alt</code> text', 'wp-accessibility' ) . '</a></span>';
-					} else {
-						echo '<span class="ok"><span class="dashicons dashicons-yes" aria-hidden="true"></span> ' . __( 'Has <code>alt</code>', 'wp-accessibility' ) . '</span>';
-					}
+					echo '<span class="ok"><span class="dashicons dashicons-yes" aria-hidden="true"></span> ' . __( 'Has <code>alt</code>', 'wp-accessibility' ) . '</span>';
 				}
-				break;
-			default:
-				echo '<span class="non-image">' . __( 'N/A', 'wp-accessibility' ) . '</span>';
-				break;
+			}
+		} else {
+			echo '<span class="non-image">' . __( 'N/A', 'wp-accessibility' ) . '</span>';
 		}
 	}
 	return $column;
@@ -91,7 +87,7 @@ function wpa_long_alt( $alt ) {
 	 *
 	 * @hook wpa_long_alt
 	 *
-	 * @param {int} $limit Default length to call alt text long.
+	 * @param int $limit Default length to call alt text long.
 	 *
 	 * @return int
 	 */
@@ -115,15 +111,23 @@ function wpa_suspicious_alt( $alt ) {
 		'logo',
 		'image',
 		'picture',
+		'graphic',
+		'photo',
+		'icon',
 		'alt text',
 		'alternative text',
+		'.png',
+		'.jpg',
+		'.jpeg',
+		'.gif',
+		'click here',
 	);
 	/**
 	 * Filter array of case insensitive strings that make alt text suspicious.
 	 *
 	 * @hook wpa_case_insensitive
 	 *
-	 * @param {array} $case_insensitive Array of strings.
+	 * @param array $case_insensitive Array of strings.
 	 *
 	 * @return array
 	 */
@@ -137,7 +141,7 @@ function wpa_suspicious_alt( $alt ) {
 	 *
 	 * @hook wpa_case_sensitive
 	 *
-	 * @param {array} $case_sensitive Array of strings.
+	 * @param array $case_sensitive Array of strings.
 	 *
 	 * @return array
 	 */
@@ -252,8 +256,15 @@ add_action( 'init', 'wpa_add_editor_styles' );
  * Enqueue custom editor styles for WP Accessibility. Used in display of img replacements.
  */
 function wpa_add_editor_styles() {
-	$wpa_version = ( SCRIPT_DEBUG ) ? wp_rand( 10000, 100000 ) : wpa_check_version();
-	add_editor_style( plugins_url( 'css/editor-style.css', __FILE__ ), false, $wpa_version );
+	$version     = wpa_check_version();
+	$wpa_version = ( SCRIPT_DEBUG ) ? $version . '-' . wp_rand( 10000, 100000 ) : $version;
+	$url         = add_query_arg(
+		array(
+			'ver' => $wpa_version,
+		),
+		plugins_url( 'css/editor-style.css', __FILE__ )
+	);
+	add_editor_style( $url );
 }
 
 add_action( 'enqueue_block_assets', 'wpa_block_editor_assets' );
@@ -263,7 +274,12 @@ add_action( 'enqueue_block_assets', 'wpa_block_editor_assets' );
 function wpa_block_editor_assets() {
 	// Using enqueue_block_assets will enqueue on the front-end if not wrapped in conditional.
 	if ( is_admin() ) {
-		$wpa_version = ( SCRIPT_DEBUG ) ? wp_rand( 10000, 100000 ) : wpa_check_version();
+		$version     = wpa_check_version();
+		$wpa_version = ( SCRIPT_DEBUG ) ? $version . '-' . wp_rand( 10000, 100000 ) : $version;
 		wp_enqueue_style( 'wpa-block-styles', plugins_url( 'css/editor-style.css', __FILE__ ), false, $wpa_version );
+
+		if ( 'on' === get_option( 'wpa_enable_visibility' ) ) {
+			wp_enqueue_style( 'wpa-visibility-styles', plugins_url( 'css/editor-visibility.css', __FILE__ ), false, $wpa_version );
+		}
 	}
 }

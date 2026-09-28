@@ -2,12 +2,12 @@
 Contributors: joedolson
 Donate link: https://www.joedolson.com/donate/
 Tags: accessibility, wcag, a11y, section508, alt text
-Requires at least: 4.9
-Tested up to: 6.7
+Requires at least: 6.4
+Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 2.1.17
+Stable tag: 2.4.0
 Text Domain: wp-accessibility
-License: GPLv2 or later
+License: GPLv2
 
 WP Accessibility fixes common accessibility issues in your WordPress site.
 
@@ -21,11 +21,11 @@ All features can be disabled according to your theme's needs. For advanced users
 
 = Theme Accessibility Features added by WP Accessibility =
 
-These are features that address issues caused by inaccessible themes. 
+These are features that address issues caused by inaccessible themes.
 
 * Add skip links with user-defined targets. (Customizable targets and appearance.)
 * Add language and text direction attributes to your HTML attribute if missing.
-* Add an outline to the keyboard focus state for focusable elements. 
+* Add an outline to the keyboard focus state for focusable elements.
 * Add a long description to images. Use the image's "Description" field to add long descriptions.
 * Enforcement for alt attributes on images in the Classic editor.
 * Identify images without alt attributes in the Media Library
@@ -36,15 +36,16 @@ These are features that address issues caused by inaccessible themes.
 
 = WordPress Core Accessibility Issues fixed by WP Accessibility =
 
-These are features that address issues caused by current or past WordPress core accessibility issues. (Issues added in content, such as target or title attributes, are persistent even when WordPress is updated.) 
+These are features that address issues caused by current or past WordPress core accessibility issues. (Issues added in content, such as target or title attributes, are persistent even when WordPress is updated.)
 
 * Force a search page error when a search is made with an empty text string. (If your theme has a search.php template.)
 * Remove redundant title attributes from tag clouds.
 * Disable default enabling of full screen block editor.
+* Reverse infinite scrolling by default as of WordPress 7.1.
 
 Content specific fixes:
 
-* Strip title attributes from images inserted into content. 
+* Strip title attributes from images inserted into content.
 * Remove the target attribute from links.
 
 = Accessibility Tools in WP Accessibility: =
@@ -81,6 +82,114 @@ WP Accessibility includes a statistics collection feature to help you identify h
 = Future =
 
 [Suggest a change!](https://github.com/joedolson/wp-accessibility/issues/)
+
+= 2.4.0 =
+
+* Change: Refactor font resizing to be JS based, resizing all text elements equivalently.
+* Remove existing font resizing styles.
+* Retain fallback for custom font resizing stylesheets, if present.
+* Add promotional notice for WordPress Accessibility Day.
+
+= 2.3.5 =
+
+* Reverse the infinite scroll default setting that regresses in WordPress 7.1.
+
+= 2.3.4 =
+
+* Feature: Add styling for block editor hover states.
+* Feature: Add escape class to ignore alt text toggles: `wpa-skip`.
+* Bug fix: Ignore controls with `aria-hidden` or `hidden` attributes when removing `tabindex` from controls.
+* Design: Update to use new admin colors with fallbacks.
+* Docs: Update filter documentation style.
+* Docs: Build docs in wiki.
+* Add versions to editor styles.
+
+= 2.3.3 =
+
+* Bug fix: Set a default option value for `wpa_track_stats` in option call, to fix issue caused by strict type checking.
+* Bug fix: Prevent escaped strings in search output from bypassing empty search checks. Props @stevejonesdev.
+
+= 2.3.2 =
+
+* Security: Sanitize alt & longdesc text before injecting into toggle name. Props Wordfence & @jtwings.
+* Bug fix: Apply alt text checks to all supported image types. Props @knutsp.
+* Change: Add additional invalid alt text patterns.
+
+= 2.3.1 =
+
+* Bug fix: Fixes broken longdesc scripting.
+
+= 2.3.0 =
+
+* Change: Split settings into three pages: features, admin, and remediation.
+* Change: Add settings to disable automatic labelling, viewport settings, lang attributes, and removal of title attributes.
+* Change: Remove PHP-based title attribute removals.
+* Change: Switch settings markup from lists to paragraphs.
+* Change: Add bulk disable to turn off all overlay features.
+
+= 2.2.6 =
+
+* Bug fix: Incorrect call to `.removeAttr` triggered catch condition on all URLs, throwing unnecessary console messages.
+
+= 2.2.5 =
+
+* Bug fix: Toolbar preference cookies not set.
+
+= 2.2.4 =
+
+* Bug fix: Remove `html { will-change: filter }` due to Safari/iOS conflicts.
+* Change: Treat `role="slider"` the same as `role="button"` for high contrast.
+* Change: log cases where `href` is a non-link-like value.
+
+= 2.2.3 =
+
+* Change: Support and synchronize multiple toolbars on a single screen.
+* Feature: Option to switch the default File block behavior to 'link' instead of 'embed'.
+
+= 2.2.2 =
+
+* Bug fix: Rewrite in JS changed the data format sent to the server for stats.
+* Bug fix: Incorrect selector for tracking stats on fontsize switcher.
+* Bug fix: Internal label in stats incorrect for contrast changes.
+
+= 2.2.1 =
+
+* Bug fix: Undeclared variable in JS.
+* Bug fix: Incorrect variable used to report errors in console.
+* Change: Only add longdesc image block variation if a UI is enabled.
+
+= 2.2.0 =
+
+* Feature: Option for automatic insertion of play/pause button on autoplay videos without controls.
+* Feature: Automatically pause autoplay videos if prefers-reduced-motion enabled.
+* Change: Refactor all front-end JS to remove jQuery dependency.
+* Change: Design changes to alt text and long description buttons for consistency.
+* Change: Expand focusable element selector list: more thorough, now does not select the a11y toolbar itself.
+* Change: Add design CSS for longdesc link.
+* Change: Omit buttons with `role="button"` from fake button selector.
+* Change: Keep title attributes on images if they are different from the alt text.
+* Change: Also remove target attributes on URL fragments.
+* Change: Find non-link elements with `role="link"` and make focusable.
+* Change: Make links using `a` with `role="link"` and no href focusable.
+* Change: Add link styles on `role="link"`.
+* Bug Fix: Apply grayscale on `html` element to prevent shifts in position.
+* Bug Fix: Modernize screen reader text classes.
+* Bug Fix: Change how version number is handled. Automatic updates don't execute activation, so version wasn't getting incremented.
+
+= 2.1.19 =
+
+* Bug fix: Don't load admin JS outside of WP Accessibility settings.
+* Bug fix: Allow text selection on headings.
+* Bug fix: If toolbar custom location is invalid, change attachment to body.
+* Change: Remove an extraneous fieldset in settings.
+* Change: Change download icon to universal access in stats.
+* Change: Set all WP A11y scripts to use the `defer` loading strategy.
+
+= 2.1.18 =
+
+* Feature: On block themes, add `aria-describedby` to continue reading links to provide expanded context.
+* Bug fix: Only fetch toolbar bounds when the toolbar is present.
+* Bug fix: Use `autorefresh` parameter on codemirror field to fix rendering.
 
 = 2.1.17 =
 

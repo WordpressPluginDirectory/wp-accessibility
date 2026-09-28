@@ -5,7 +5,7 @@
  * @category Issues
  * @package  WP Accessibility
  * @author   Joe Dolson
- * @license  GPLv2 or later
+ * @license  GPLv2
  * @link     https://www.joedolson.com/wp-accessibility/
  */
 
@@ -74,7 +74,7 @@ add_action( 'init', 'wpa_taxonomies', 0 );
  * @param int|string $post_ID ID of the post if singular.
  */
 function wpa_add_stats( $stats, $title, $type = 'view', $post_ID = 0 ) {
-	$admin_only = ( '' === get_option( 'wpa_track_stats' ) ) ? true : false;
+	$admin_only = ( '' === get_option( 'wpa_track_stats', '' ) ) ? true : false;
 	if ( $admin_only && ! current_user_can( 'manage_options' ) ) {
 		return;
 	}
@@ -115,8 +115,8 @@ function wpa_add_stats( $stats, $title, $type = 'view', $post_ID = 0 ) {
 		 *
 		 * @hook wpa_save_stats_update
 		 *
-		 * @param {int}   $exists Existing post ID.
-		 * @param {array} $stats Stats data sent via AJAX.
+		 * @param int   $exists Existing post ID.
+		 * @param array $stats Stats data sent via AJAX.
 		 */
 		do_action( 'wpa_save_stats_update', $exists, $stats );
 		return array( $stats );
@@ -147,9 +147,9 @@ function wpa_add_stats( $stats, $title, $type = 'view', $post_ID = 0 ) {
 		 *
 		 * @hook wpa_save_stats_post
 		 *
-		 * @param {int}   $stat New post ID.
-		 * @param {array} $stats Stats data sent via AJAX.
-		 * @param {int}   $post_ID Related post ID or false if a non-singular screen.
+		 * @param int   $stat New post ID.
+		 * @param array $stats Stats data sent via AJAX.
+		 * @param int   $post_ID Related post ID or false if a non-singular screen.
 		 */
 		do_action( 'wpa_save_stats_post', $stat, $stats, $post_ID );
 		return array();
@@ -201,9 +201,9 @@ function wpa_get_current_url() {
 	 *
 	 * @hook wpa_get_current_url
 	 *
-	 * @param {string} $current_url Current URL according to wp_rewrite.
+	 * @param string $current_url Current URL according to wp_rewrite.
 	 *
-	 * @return {string}
+	 * @return string
 	 */
 	$current_url = apply_filters( 'wpa_get_current_url', $current_url );
 
@@ -221,7 +221,11 @@ function wpa_stats_action() {
 		if ( ! wp_verify_nonce( $security, 'wpa-stats-action' ) ) {
 			wp_die();
 		}
-		$stats   = map_deep( $_REQUEST['stats'], 'sanitize_text_field' );
+		$stats = json_decode( wp_unslash( $_REQUEST['stats'] ) );
+		$stats = map_deep( $stats, 'sanitize_text_field' );
+		if ( is_object( $stats ) ) {
+			$stats = (array) $stats;
+		}
 		$post_id = absint( $_REQUEST['post_id'] );
 		$title   = ( wpa_is_url( $_REQUEST['title'] ) ) ? esc_url( $_REQUEST['title'] ) : sanitize_text_field( $_REQUEST['title'] );
 		$type    = ( 'view' === $_REQUEST['type'] ) ? 'view' : 'event';
@@ -304,7 +308,7 @@ function wpa_get_stats( $type = 'view', $count = 1 ) {
  * @param string $type Stats type.
  * @param int    $limit Number of stat points to show.
  *
- * @return string
+ * @return array
  */
 function wpa_stats_data_point( $post, $type, $limit = 5 ) {
 	$output   = '';
@@ -333,6 +337,7 @@ function wpa_stats_data_point( $post, $type, $limit = 5 ) {
 
 	$line  = '';
 	$total = 0;
+	$text  = '';
 	if ( 'event' === $type ) {
 		$date = gmdate( 'Y-m-d', $data->timestamp );
 		$time = gmdate( 'H:i', $data->timestamp );
@@ -444,11 +449,11 @@ function wpa_stats_data_point( $post, $type, $limit = 5 ) {
 	 *
 	 * @hook wpa_stats_data_point
 	 *
-	 * @param {array}   $return Array with an `html` key containing HTML and a `count` string with the number of issues to display.
-	 * @param {WP_Post} $post WordPress post object.
-	 * @param {string}  $type Type of stat; 'event' or 'view'.
+	 * @param array   $return Array with an `html` key containing HTML and a `count` string with the number of issues to display.
+	 * @param WP_Post $post WordPress post object.
+	 * @param string  $type Type of stat; 'event' or 'view'.
 	 *
-	 * @return {array}
+	 * @return array
 	 */
 	$return = apply_filters( 'wpa_stats_data_point', $return, $post, $type );
 	return $return;
@@ -470,7 +475,7 @@ function wpa_compare_views( $post_id ) {
 		// translators: Number of accessibility issues fixed.
 		$info = sprintf( _n( '%d issue fixed', '%d issues fixed', $data, 'wp-accessibility' ), $data );
 
-		return '<span class="dashicons dashicons-download" aria-hidden="true"></span> ' . $info;
+		return '<span class="dashicons dashicons-universal-access" aria-hidden="true"></span> ' . $info;
 	}
 	if ( count( $history ) > 1 ) {
 		$current  = array_pop( $history );
@@ -686,8 +691,10 @@ function wpa_custom_column( $column_name, $post_id ) {
 				$data  = ( property_exists( $event, 'contrast' ) ) ? 'contrast' : 'fontsize';
 				$icon  = ( 'contrast' === $data ) ? ' aticon aticon-adjust' : ' aticon aticon-font';
 				$label = ( property_exists( $event, 'contrast' ) ) ? __( 'High Contrast', 'wp-accessibility' ) : __( 'Large Font Size', 'wp-accessibility' );
-				// translators: Action taken. High Contrast or Large Font Size.
-				if ( 'fontsize' === $data && property_exists( $data, 'fontsize' ) ) {
+
+				$is_contrast = 'contrast' === $data && property_exists( $event, 'contrast' ) ? true : false;
+				$is_fontsize = 'fontsize' === $data && property_exists( $event, 'fontsize' ) ? true : false;
+				if ( $is_contrast || $is_fontsize ) {
 					// translators: Action enabled.
 					$last_action = ( 'enabled' === $event->{$data} ) ? sprintf( __( '%s enabled', 'wp-accessibility' ), $label ) : sprintf( __( '%s disabled', 'wp-accessibility' ), $label );
 				} else {
@@ -698,7 +705,7 @@ function wpa_custom_column( $column_name, $post_id ) {
 				}
 			} else {
 				if ( ! $events ) {
-					$icon        = 'download';
+					$icon        = 'universal-access';
 					$last_action = __( 'Page loaded', 'wp-accessibility' );
 				} else {
 					$icon = 'update';

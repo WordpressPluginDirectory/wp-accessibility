@@ -5,7 +5,7 @@
  * @category Settings
  * @package  WP Accessibility
  * @author   Joe Dolson
- * @license  GPLv2 or later
+ * @license  GPLv2
  * @link     https://www.joedolson.com/wp-accessibility/
  */
 
