@@ -17,7 +17,7 @@
  * Domain Path: /lang
  * License:     GPL-2.0+
  * License URI: http://www.gnu.org/license/gpl-2.0.txt
- * Version: 2.4.0
+ * Version: 2.4.2
  */
 
 /*
@@ -52,10 +52,13 @@ if ( 'off' !== get_option( 'wpa_track_stats' ) ) {
 	require_once __DIR__ . '/wp-accessibility-stats.php';
 }
 
-define( 'WP_ACCESSIBILITY_VERSION', '2.4.0' );
+define( 'WP_ACCESSIBILITY_VERSION', '2.4.2' );
 
 register_activation_hook( __FILE__, 'wpa_install' );
 
+/**
+ * Execute WP Accessibility admin functions on init.
+ */
 function wpa_admin_init() {
 	// Handle dismiss actions for the WP Accessibility Day promo.
 	if ( isset( $_GET['action'] ) && 'wpa_dismiss_once' === $_GET['action'] ) {
@@ -110,8 +113,8 @@ function wpa_status_notice() {
 		$dismiss_permanently = '<a href="' . esc_url( admin_url( 'admin.php?page=wp-accessibility&action=wpa_dismiss_permanently' ) ) . '" class="button button-secondary">' . __( 'Dismiss forever', 'wp-accessibility' ) . '</a>';
 
 		$notice = sprintf(
-		__(
-			'%1$s <span>The biggest WordPress Accessibility event of the year starts October 7th. <a href="%2$s">Check out the full schedule</a>!</span>', 'wp-accessibility' ),
+			// translators: %1$s is the image, %2$s is the URL to the full schedule.
+			__( '%1$s <span>The biggest WordPress Accessibility event of the year starts October 7th. <a href="%2$s">Check out the full schedule</a>!</span>', 'wp-accessibility' ),
 			'<img src="' . esc_url( plugin_dir_url( __FILE__ ) . 'imgs/wpa11yday-2026.png' ) . '" alt="WP Accessibility Day 2026">',
 			'https://wpaccessibility.day/2026/schedule/?utm_source=wp-accessibility&utm_medium=software',
 		);
